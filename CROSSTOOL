@@ -1,0 +1,155 @@
+major_version: "1"
+minor_version: "0"
+default_target_cpu: "krte"
+
+default_toolchain {
+  cpu: "krte"
+  toolchain_identifier: "krte"
+}
+
+default_toolchain {
+  cpu: "k8"
+  toolchain_identifier: "krte"
+}
+
+default_toolchain {
+  cpu: "piii"
+  toolchain_identifier: "krte"
+}
+
+toolchain {
+  abi_version: "gcc_6.3.0"
+  abi_libc_version: "glibc_2.24"
+  builtin_sysroot: ""
+  compiler: "gcc"
+  host_system_name: "x86_64-krte-linux-gnu"
+  needsPic: true
+  supports_gold_linker: true
+  supports_incremental_linker: false
+  supports_fission: false
+  supports_interface_shared_objects: false
+  supports_normalizing_ar: false
+  supports_start_end_lib: false
+  target_libc: "glibc_2.24"
+  target_cpu: "krte"
+  target_system_name: "x86_64-krte-linux-gnu"
+  toolchain_identifier: "krte"
+
+  tool_path { name: "ar" path: "/opt/krte/toolchain/bin/ar" }
+  tool_path { name: "compat-ld" path: "/opt/krte/toolchain/bin/ld.gold" }
+  tool_path { name: "cpp" path: "/opt/krte/toolchain/bin/cpp" }
+  tool_path { name: "dwp" path: "/opt/krte/toolchain/bin/dwp" }
+  tool_path { name: "gcc" path: "/opt/krte/toolchain/bin/gcc" }
+  cxx_flag: "-std=c++14"
+  linker_flag: "-lstdc++"
+  linker_flag: "-B/opt/krte/toolchain/bin"
+  linker_flag: "-fuse-ld=gold"
+
+  # Disable LTO by default to speed up building.
+  compiler_flag: "-fno-lto"
+  linker_flag: "-fno-lto"
+
+  # TODO(bazel-team): In theory, the path here ought to exactly match the path
+  # used by gcc. That works because bazel currently doesn't track files at
+  # absolute locations and has no remote execution, yet. However, this will need
+  # to be fixed, maybe with auto-detection?
+  cxx_builtin_include_directory: "/opt/krte/toolchain/lib/gcc/x86_64-krte-linux-gnu/6.3.0/include"
+  cxx_builtin_include_directory: "/opt/krte/toolchain/include"
+  cxx_builtin_include_directory: "/opt/krte/toolchain/lib/gcc/x86_64-krte-linux-gnu/6.3.0/include-fixed"
+  tool_path { name: "gcov" path: "/opt/krte/toolchain/bin/gcov" }
+
+  # C(++) compiles invoke the compiler (as that is the one knowing where
+  # to find libraries), but we provide LD so other rules can invoke the linker.
+  tool_path { name: "ld" path: "/opt/krte/toolchain/bin/ld.gold" }
+
+  tool_path { name: "nm" path: "/opt/krte/toolchain/bin/nm" }
+  tool_path { name: "objcopy" path: "/opt/krte/toolchain/bin/objcopy" }
+  objcopy_embed_flag: "-I"
+  objcopy_embed_flag: "binary"
+  tool_path { name: "objdump" path: "/opt/krte/toolchain/bin/objdump" }
+  tool_path { name: "strip" path: "/opt/krte/toolchain/bin/strip" }
+
+  # Anticipated future default.
+  unfiltered_cxx_flag: "-no-canonical-prefixes"
+  unfiltered_cxx_flag: "-fno-canonical-system-headers"
+
+  # Make C++ compilation deterministic. Use linkstamping instead of these
+  # compiler symbols.
+  unfiltered_cxx_flag: "-Wno-builtin-macro-redefined"
+  unfiltered_cxx_flag: "-D__DATE__=\"redacted\""
+  unfiltered_cxx_flag: "-D__TIMESTAMP__=\"redacted\""
+  unfiltered_cxx_flag: "-D__TIME__=\"redacted\""
+
+  # Security hardening on by default.
+  # Conservative choice; -D_FORTIFY_SOURCE=2 may be unsafe in some cases.
+  # We need to undef it before redefining it as some distributions now have
+  # it enabled by default.
+  compiler_flag: "-U_FORTIFY_SOURCE"
+  compiler_flag: "-D_FORTIFY_SOURCE=1"
+  compiler_flag: "-fstack-protector"
+  linker_flag: "-Wl,-z,relro,-z,now"
+
+  # Enable coloring even if there's no attached terminal. Bazel removes the
+  # escape sequences if --nocolor is specified. This isn't supported by gcc
+  # on Ubuntu 14.04.
+  # compiler_flag: "-fcolor-diagnostics"
+
+  # All warnings are enabled. Maybe enable -Werror as well?
+  compiler_flag: "-Wall"
+  # Enable a few more warnings that aren't part of -Wall.
+  compiler_flag: "-Wunused-but-set-parameter"
+  # But disable some that are problematic.
+  compiler_flag: "-Wno-free-nonheap-object" # has false positives
+
+  # Keep stack frames for debugging, even in opt mode.
+  compiler_flag: "-fno-omit-frame-pointer"
+
+  # Anticipated future default.
+  linker_flag: "-no-canonical-prefixes"
+  # Have gcc return the exit code from ld.
+  linker_flag: "-pass-exit-codes"
+  # Stamp the binary with a unique identifier.
+  linker_flag: "-Wl,--build-id=md5"
+  linker_flag: "-Wl,--hash-style=gnu"
+  # Gold linker only? Can we enable this by default?
+  linker_flag: "-Wl,--warn-execstack"
+  linker_flag: "-Wl,--detect-odr-violations"
+
+  compilation_mode_flags {
+    mode: DBG
+    # Enable debug symbols.
+    compiler_flag: "-g"
+  }
+  compilation_mode_flags {
+    mode: OPT
+
+    # No debug symbols.
+    # Maybe we should enable https://gcc.gnu.org/wiki/DebugFission for opt or
+    # even generally? However, that can't happen here, as it requires special
+    # handling in Bazel.
+    compiler_flag: "-g0"
+
+    # Conservative choice for -O
+    # -O3 can increase binary size and even slow down the resulting binaries.
+    # Profile first and / or use FDO if you need better performance than this.
+    compiler_flag: "-O2"
+
+    # Disable assertions
+    compiler_flag: "-DNDEBUG"
+
+    # Removal of unused code and data at link time (can this increase binary size in some cases?).
+    compiler_flag: "-ffunction-sections"
+    compiler_flag: "-fdata-sections"
+    linker_flag: "-Wl,--gc-sections"
+
+    # Enable LTO for better performance.
+    compiler_flag: "-flto"
+    compiler_flag: "-ffat-lto-objects"
+    compiler_flag: "-march=native"
+    linker_flag: "-fuse-linker-plugin"
+    linker_flag: "-flto"
+    linker_flag: "-march=native"
+    linker_flag: "-O2"
+  }
+  linking_mode_flags { mode: DYNAMIC }
+}
