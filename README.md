@@ -38,7 +38,7 @@ are statically linked. There are several benefits for this:
 2. Configure your bazel project:
    * Put the CROSSTOOL and BUILD into a directory you like (by either git
      submodule or git subtree) and build with
-     `--crosstool\_top=//<directory>:toolchain`;
+     `--crosstool_top=//<directory>:toolchain`;
    * Put the following lines in the WORKSPACE file so libraries will be
      available:
 
